@@ -1,6 +1,9 @@
-from fastapi import FastAPI, UploadFile
-import soundfile as sf
+from whisper.audio import SAMPLE_RATE
+from fastapi import FastAPI, File
+import numpy as np
+import subprocess
 import whisper
+import ffmpeg
 
 
 app = FastAPI()
@@ -14,11 +17,17 @@ def root():
 
 
 @app.post("/transcribe")
-def transcribe(wav: UploadFile):
-    file = wav.file
-    y, sr = sf.read(file, dtype="float32")
-    assert sr == 48_000  # For StereoKit
-    abc = y[::3], y[1::3], y[2::3]
-    ml = min(map(len, abc))
-    y = sum(a[:ml] for a in abc) / 3  # DIY resampling! (Have I mentioned that this is not production-ready)
-    return {"result": model.transcribe(y)["text"]}
+def transcribe(wav: bytes = File()):
+    return {"result": model.transcribe(resample(wav))["text"]}
+
+
+def resample(file):
+    args = (
+        ffmpeg.input("-", threads=0)
+        .output("-", format="s16le", acodec="pcm_s16le", ac=1, ar=SAMPLE_RATE)
+        .get_args()
+    )
+    out, _ = subprocess.Popen(["ffmpeg"] + args, stdin=subprocess.PIPE, stdout=subprocess.PIPE).communicate(file)
+    out = np.frombuffer(out, np.int16).flatten().astype(np.float32) / 32768.0
+    out = out / out.max()
+    return out
