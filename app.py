@@ -29,5 +29,5 @@ def resample(file):
     )
     out, _ = subprocess.Popen(["ffmpeg"] + args, stdin=subprocess.PIPE, stdout=subprocess.PIPE).communicate(file)
     out = np.frombuffer(out, np.int16).flatten().astype(np.float32) / 32768.0
-    out = out / out.max()
+    # out = out / out.max()
     return out
